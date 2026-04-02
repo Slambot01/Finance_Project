@@ -19,7 +19,7 @@ type Claims struct {
 
 // GenerateToken creates a signed HS256 JWT carrying the user's ID, email, and role.
 // It reads JWT_SECRET and JWT_EXPIRY_HOURS from environment variables.
-// If JWT_EXPIRY_HOURS is missing or unparseable, it defaults to 24 hours.
+// If JWT_EXPIRY_HOURS is missing or not parseable, it defaults to 24 hours.
 func GenerateToken(userID, email, role string) (string, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {

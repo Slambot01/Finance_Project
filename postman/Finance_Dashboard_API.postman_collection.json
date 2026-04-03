@@ -1,0 +1,370 @@
+{
+	"info": {
+		"name": "Finance Dashboard API",
+		"description": "Complete API collection for the Finance Dashboard — authentication, user management, financial records, and dashboard analytics.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"description": "Public authentication endpoints",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Jane Doe\",\n  \"email\": \"jane@example.com\",\n  \"password\": \"securepassword123\",\n  \"role\": \"admin\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "register"]
+						},
+						"description": "Register a new user. Role can be viewer, analyst, or admin."
+					}
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"jane@example.com\",\n  \"password\": \"securepassword123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Authenticate and receive a JWT token. Copy the token from the response and set it as the 'token' environment variable."
+					}
+				}
+			]
+		},
+		{
+			"name": "Users",
+			"description": "User management endpoints (Admin only)",
+			"item": [
+				{
+					"name": "Get All Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users"]
+						},
+						"description": "List all registered users. Requires admin role."
+					}
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"analyst\",\n  \"is_active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/users/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "REPLACE_WITH_USER_UUID",
+									"description": "UUID of the user to update"
+								}
+							]
+						},
+						"description": "Update a user's role or active status. Requires admin role."
+					}
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/users/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "users", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "REPLACE_WITH_USER_UUID",
+									"description": "UUID of the user to delete"
+								}
+							]
+						},
+						"description": "Permanently delete a user. Associated financial records are cascade-deleted. Requires admin role."
+					}
+				}
+			]
+		},
+		{
+			"name": "Records",
+			"description": "Financial record endpoints",
+			"item": [
+				{
+					"name": "Create Record",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 4500.00,\n  \"type\": \"income\",\n  \"category\": \"salary\",\n  \"date\": \"2026-04-01T00:00:00Z\",\n  \"notes\": \"April salary\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/records",
+							"host": ["{{base_url}}"],
+							"path": ["api", "records"]
+						},
+						"description": "Create a new financial record. Type must be 'income' or 'expense'. Requires admin role."
+					}
+				},
+				{
+					"name": "Get All Records",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/records?page=1&page_size=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "records"],
+							"query": [
+								{
+									"key": "type",
+									"value": "income",
+									"description": "Filter by type: income or expense",
+									"disabled": true
+								},
+								{
+									"key": "category",
+									"value": "salary",
+									"description": "Filter by category",
+									"disabled": true
+								},
+								{
+									"key": "start_date",
+									"value": "2026-01-01",
+									"description": "Filter from date (YYYY-MM-DD)",
+									"disabled": true
+								},
+								{
+									"key": "end_date",
+									"value": "2026-12-31",
+									"description": "Filter to date (YYYY-MM-DD)",
+									"disabled": true
+								},
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "page_size",
+									"value": "10",
+									"description": "Records per page (default: 10, max: 100)"
+								}
+							]
+						},
+						"description": "List financial records with optional filters and pagination. Viewers see only their own records; analysts and admins see all."
+					}
+				},
+				{
+					"name": "Get Record By ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/records/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "records", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "REPLACE_WITH_RECORD_UUID",
+									"description": "UUID of the financial record"
+								}
+							]
+						},
+						"description": "Retrieve a single financial record by its UUID."
+					}
+				},
+				{
+					"name": "Update Record",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"amount\": 5000.00,\n  \"category\": \"bonus\",\n  \"notes\": \"Updated: April salary + bonus\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/records/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "records", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "REPLACE_WITH_RECORD_UUID",
+									"description": "UUID of the financial record to update"
+								}
+							]
+						},
+						"description": "Partially update a financial record. Requires admin role."
+					}
+				},
+				{
+					"name": "Delete Record",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/records/:id",
+							"host": ["{{base_url}}"],
+							"path": ["api", "records", ":id"],
+							"variable": [
+								{
+									"key": "id",
+									"value": "REPLACE_WITH_RECORD_UUID",
+									"description": "UUID of the financial record to soft-delete"
+								}
+							]
+						},
+						"description": "Soft-delete a financial record. The record is excluded from queries and analytics but remains in the database. Requires admin role."
+					}
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"description": "Analytics and reporting endpoints",
+			"item": [
+				{
+					"name": "Get Summary",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/summary",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "summary"]
+						},
+						"description": "Get aggregate financial totals: total income, total expenses, net balance, and total record count."
+					}
+				},
+				{
+					"name": "Get Trends",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/trends",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "trends"]
+						},
+						"description": "Get monthly income vs expense breakdown ordered chronologically. Requires analyst or admin role."
+					}
+				},
+				{
+					"name": "Get Category Breakdown",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/dashboard/categories",
+							"host": ["{{base_url}}"],
+							"path": ["api", "dashboard", "categories"]
+						},
+						"description": "Get per-category totals for income, expense, overall total, and transaction count. Requires analyst or admin role."
+					}
+				}
+			]
+		}
+	]
+}

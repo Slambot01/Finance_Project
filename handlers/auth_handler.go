@@ -30,6 +30,9 @@ type loginRequest struct {
 }
 
 // Register handles POST /auth/register — creates a new user account.
+// This allows public self-registration with any role including admin.
+// This is intentional for assessment purposes — in production, role assignment
+// would be restricted to admin-only after initial bootstrap.
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

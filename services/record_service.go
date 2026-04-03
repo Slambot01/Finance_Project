@@ -36,6 +36,10 @@ func (s *RecordService) CreateRecord(record *models.FinancialRecord) (*models.Fi
 		return nil, errors.New("category is required")
 	}
 
+	if record.Date.IsZero() {
+		return nil, errors.New("date is required and must be a valid date")
+	}
+
 	if err := s.DB.Create(record).Error; err != nil {
 		return nil, errors.New("failed to create financial record")
 	}

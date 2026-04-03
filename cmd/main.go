@@ -12,6 +12,11 @@ func main() {
 	// Load configuration from .env
 	cfg := config.Load()
 
+	// Ensure critical security config is present.
+	if cfg.JWTSecret == "" {
+		log.Fatal("FATAL: JWT_SECRET environment variable must be set")
+	}
+
 	// Connect to PostgreSQL
 	db := config.ConnectDB(cfg)
 

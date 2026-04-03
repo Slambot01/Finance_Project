@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"finance-dashboard/models"
 	"finance-dashboard/services"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 // RecordHandler handles financial record HTTP requests.
@@ -26,6 +28,12 @@ func (h *RecordHandler) CreateRecord(c *gin.Context) {
 		return
 	}
 
+	// Prevent mass-assignment of server-controlled fields.
+	record.ID = uuid.Nil
+	record.CreatedAt = time.Time{}
+	record.UpdatedAt = time.Time{}
+	record.DeletedAt = gorm.DeletedAt{}
+
 	// Set the owning user from the authenticated context.
 	userID := c.GetString("userID")
 	parsedUID, err := uuid.Parse(userID)
@@ -39,7 +47,8 @@ func (h *RecordHandler) CreateRecord(c *gin.Context) {
 	if err != nil {
 		if strings.Contains(err.Error(), "invalid type") ||
 			strings.Contains(err.Error(), "amount must be") ||
-			strings.Contains(err.Error(), "category is required") {
+			strings.Contains(err.Error(), "category is required") ||
+			strings.Contains(err.Error(), "date is required") {
 			utils.Error(c, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -138,7 +147,8 @@ func (h *RecordHandler) UpdateRecord(c *gin.Context) {
 			return
 		}
 		if strings.Contains(err.Error(), "invalid type") ||
-			strings.Contains(err.Error(), "must be") {
+			strings.Contains(err.Error(), "amount must be") ||
+			strings.Contains(err.Error(), "type must be") {
 			utils.Error(c, http.StatusBadRequest, err.Error())
 			return
 		}

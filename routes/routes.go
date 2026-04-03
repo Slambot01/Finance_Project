@@ -1,9 +1,12 @@
 package routes
 
 import (
+	"net/http"
+
 	"finance-dashboard/handlers"
 	"finance-dashboard/middleware"
 	"finance-dashboard/services"
+	"finance-dashboard/utils"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -25,6 +28,11 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 	userHandler := &handlers.UserHandler{Service: userService}
 	recordHandler := &handlers.RecordHandler{Service: recordService}
 	dashboardHandler := &handlers.DashboardHandler{Service: dashboardService}
+
+	// ── Health check ────────────────────────────────────────────────────
+	router.GET("/health", func(c *gin.Context) {
+		utils.Success(c, http.StatusOK, "service is healthy", nil)
+	})
 
 	// ── Public routes (no auth required) ────────────────────────────────
 	auth := router.Group("/auth")

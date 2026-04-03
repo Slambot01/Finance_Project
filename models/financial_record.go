@@ -19,7 +19,7 @@ const (
 type FinancialRecord struct {
 	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID    uuid.UUID      `gorm:"type:uuid;not null;index" json:"user_id"`
-	User      User           `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;" json:"-"`
+	User      User           `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"-"`
 	Amount    float64        `gorm:"not null" json:"amount"`
 	Type      RecordType     `gorm:"type:varchar(20);not null" json:"type"`
 	Category  string         `gorm:"type:varchar(100);not null" json:"category"`

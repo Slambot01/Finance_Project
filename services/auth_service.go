@@ -15,7 +15,7 @@ type AuthService struct {
 	DB *gorm.DB
 }
 
-// validRoles is the canonical set of allowed roles.
+// validRoles is the canonical set of allowed roles, shared across the services package.
 var validRoles = map[models.RoleType]struct{}{
 	models.RoleViewer:  {},
 	models.RoleAnalyst: {},

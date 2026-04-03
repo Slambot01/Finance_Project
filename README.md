@@ -16,6 +16,7 @@ A production-ready RESTful API for managing financial records with role-based ac
 - **User Management** — admin-only user administration
 - **Consistent JSON Envelope** — every response follows `{ success, message, data }`
 - **UUID Primary Keys** — scalable, non-enumerable identifiers
+- **IP-Based Rate Limiting** — 100 requests/minute per IP
 - **Health Check Endpoint** for liveness probes
 
 ---
@@ -30,7 +31,8 @@ finance-dashboard/
 │   └── config.go                        # Environment config + DB connection
 ├── middleware/
 │   ├── auth.go                          # JWT authentication middleware
-│   └── rbac.go                          # Role-based access control middleware
+│   ├── rbac.go                          # Role-based access control middleware
+│   └── rate_limiter.go                  # IP-based rate limiting (100 req/min)
 ├── models/
 │   ├── user.go                          # User model with role enum
 │   └── financial_record.go              # Financial record model (soft delete)
@@ -353,6 +355,7 @@ A complete Postman collection and environment are included for testing:
 - **Middleware-Level Security** — JWT validation and RBAC are enforced at the middleware layer before any handler code executes.
 - **Password Safety** — Passwords are hashed with bcrypt and never returned in API responses (`json:"-"` tag).
 - **Parameterized Queries** — All database queries use GORM's parameterized interface, preventing SQL injection.
+- **Rate Limiting** — IP-based throttling at 100 requests/minute using `x/time/rate`, applied globally before all routes.
 - **No Circular Dependencies** — One-directional dependency graph: `cmd → routes → handlers → services → models`.
 
 ---

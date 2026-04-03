@@ -16,6 +16,7 @@ import (
 // and registers every route with the appropriate middleware.
 func SetupRoutes(db *gorm.DB) *gin.Engine {
 	router := gin.Default()
+	router.Use(middleware.RateLimiter())
 
 	// ── Services ────────────────────────────────────────────────────────
 	authService := &services.AuthService{DB: db}

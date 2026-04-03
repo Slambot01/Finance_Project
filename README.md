@@ -29,10 +29,23 @@ finance-dashboard/
 │   └── main.go                          # Application entry point
 ├── config/
 │   └── config.go                        # Environment config + DB connection
+├── services/
+│   ├── auth_service.go                  # Auth business logic
+│   ├── auth_service_test.go             # 8 tests
+│   ├── user_service.go                  # User business logic
+│   ├── user_service_test.go             # 10 tests
+│   ├── record_service.go               # Record business logic
+│   ├── record_service_test.go           # 21 tests
+│   ├── dashboard_service.go             # Dashboard analytics logic
+│   ├── dashboard_service_test.go        # 7 tests
+│   └── test_helpers_test.go             # Test DB setup + cleanup
 ├── middleware/
 │   ├── auth.go                          # JWT authentication middleware
+│   ├── auth_test.go                     # 6 tests
 │   ├── rbac.go                          # Role-based access control middleware
-│   └── rate_limiter.go                  # IP-based rate limiting (100 req/min)
+│   ├── rbac_test.go                     # 5 tests
+│   ├── rate_limiter.go                  # IP-based rate limiting
+│   └── rate_limiter_test.go             # 4 tests
 ├── models/
 │   ├── user.go                          # User model with role enum
 │   └── financial_record.go              # Financial record model (soft delete)
@@ -41,15 +54,11 @@ finance-dashboard/
 │   ├── user_handler.go                  # User management handlers
 │   ├── record_handler.go                # Financial record handlers
 │   └── dashboard_handler.go             # Analytics handlers
-├── services/
-│   ├── auth_service.go                  # Auth business logic
-│   ├── user_service.go                  # User business logic
-│   ├── record_service.go                # Record business logic
-│   └── dashboard_service.go             # Dashboard analytics logic
 ├── routes/
 │   └── routes.go                        # Route registration + middleware wiring
 ├── utils/
 │   ├── jwt.go                           # JWT generation + validation
+│   ├── jwt_test.go                      # 6 tests
 │   └── response.go                      # Standardized response helpers
 ├── postman/
 │   ├── Finance_Dashboard_API.postman_collection.json
@@ -324,6 +333,26 @@ GET /api/records?type=expense&category=food&start_date=2026-01-01&end_date=2026-
 
 ---
 
+## Running Tests
+
+The project includes 66 tests (46 service layer + 20 middleware/utility) covering authentication, authorization, CRUD operations, analytics, and rate limiting.
+
+```bash
+# Service layer tests (requires PostgreSQL test database)
+go test ./services/ -v
+
+# Middleware and utility tests (no database required)
+go test ./middleware/ -v
+go test ./utils/ -v
+
+# Run all tests
+go test ./... -v
+```
+
+> **Note:** Service tests require a running PostgreSQL instance and a `finance_dashboard_test` database. Copy `.env.test.example` to `.env.test` and configure your test database credentials.
+
+---
+
 ## Postman Collection
 
 A complete Postman collection and environment are included for testing:
@@ -339,7 +368,7 @@ A complete Postman collection and environment are included for testing:
 
 ## Assumptions & Design Decisions
 
-1. **Role Assignment at Registration** — Users select their role during registration. Only admins can subsequently change a user's role. In a production system, public registration would default to `viewer` with admin-only role promotion.
+1. **Role Assignment at Registration** — Users select their role during registration. Only admins can subsequently change a user's role.
 
 2. **Viewer Data Scoping** — Viewers can only see their own financial records. Analysts and admins see all records across all users. This scoping is enforced at the handler level by injecting the user's ID into query filters.
 
@@ -362,4 +391,4 @@ A complete Postman collection and environment are included for testing:
 
 ## License
 
-This project was built as a technical assessment submission.
+MIT

@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"finance-dashboard/config"
 	"finance-dashboard/models"
+	"finance-dashboard/routes"
 )
 
 func main() {
@@ -22,6 +22,17 @@ func main() {
 	}
 	log.Println("Database migration completed successfully")
 
-	log.Println("Server starting...")
-	fmt.Printf("Listening on port %s\n", cfg.Port)
+	// Wire up routes, middleware, and handlers
+	router := routes.SetupRoutes(db)
+
+	// Determine port
+	port := cfg.Port
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Server running on port %s", port)
+	if err := router.Run(":" + port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
+	}
 }

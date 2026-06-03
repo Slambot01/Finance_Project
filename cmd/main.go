@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"log"
 	"net/http"
 	"os"
@@ -16,6 +17,9 @@ import (
 )
 
 func main() {
+	migrateFlag := flag.Bool("migrate", false, "Run database migrations and exit")
+	flag.Parse()
+
 	// Load configuration from .env
 	cfg := config.Load()
 
@@ -28,9 +32,8 @@ func main() {
 	db := config.ConnectDB(cfg)
 
 	// Auto-migrate database tables.
-	// WARNING: AutoMigrate is disabled in production. Use versioned SQL
-	// migrations (e.g., golang-migrate) for production schema changes.
-	if cfg.AppEnv != "production" {
+	// WARNING: AutoMigrate is disabled in production unless explicitly called with --migrate.
+	if cfg.AppEnv != "production" || *migrateFlag {
 		err := db.AutoMigrate(
 			&models.User{},
 			&models.FinancialRecord{},
@@ -45,8 +48,13 @@ func main() {
 			log.Fatalf("Failed to auto-migrate database: %v", err)
 		}
 		log.Println("Database migration completed successfully")
+
+		if *migrateFlag {
+			log.Println("Migration mode requested. Exiting.")
+			os.Exit(0)
+		}
 	} else {
-		log.Println("Production mode: skipping AutoMigrate (use versioned migrations)")
+		log.Println("Production mode: skipping AutoMigrate (use --migrate to run migrations)")
 	}
 
 	// Start the outbox publisher background worker.

@@ -1,10 +1,10 @@
 package services
 
 import (
-	"errors"
-
+	apperrors "finance-dashboard/errors"
 	"finance-dashboard/models"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
@@ -13,69 +13,78 @@ type DashboardService struct {
 	DB *gorm.DB
 }
 
-// GetSummary returns aggregate totals across all non-deleted financial records:
-// total_income, total_expenses, net_balance, and total_records.
-func (s *DashboardService) GetSummary() (map[string]interface{}, error) {
+// GetSummary returns aggregate totals across all non-deleted financial records grouped by currency:
+func (s *DashboardService) GetSummary() (map[string]map[string]interface{}, error) {
 	type summaryResult struct {
-		TotalIncome   float64
-		TotalExpenses float64
+		Currency      string
+		TotalIncome   decimal.Decimal
+		TotalExpenses decimal.Decimal
 		TotalRecords  int64
 	}
 
-	var result summaryResult
+	var results []summaryResult
 
 	err := s.DB.Model(&models.FinancialRecord{}).
 		Select(
+			"currency",
 			"COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS total_income",
 			"COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS total_expenses",
 			"COUNT(*) AS total_records",
 		).
-		Scan(&result).Error
+		Group("currency").
+		Scan(&results).Error
 
 	if err != nil {
-		return nil, errors.New("failed to retrieve dashboard summary")
+		return nil, apperrors.Internal("failed to retrieve dashboard summary", err)
 	}
 
-	return map[string]interface{}{
-		"total_income":   result.TotalIncome,
-		"total_expenses": result.TotalExpenses,
-		"net_balance":    result.TotalIncome - result.TotalExpenses,
-		"total_records":  result.TotalRecords,
-	}, nil
+	summary := make(map[string]map[string]interface{})
+	for _, r := range results {
+		summary[r.Currency] = map[string]interface{}{
+			"total_income":   r.TotalIncome,
+			"total_expenses": r.TotalExpenses,
+			"net_balance":    r.TotalIncome.Sub(r.TotalExpenses),
+			"total_records":  r.TotalRecords,
+		}
+	}
+	return summary, nil
 }
 
 // GetTrends returns a monthly income vs expense breakdown ordered
-// chronologically. Each entry contains month, income, expense, and net.
+// chronologically, grouped by currency.
 func (s *DashboardService) GetTrends() ([]map[string]interface{}, error) {
 	type trendRow struct {
-		Month   string
-		Income  float64
-		Expense float64
+		Currency string
+		Month    string
+		Income   decimal.Decimal
+		Expense  decimal.Decimal
 	}
 
 	var rows []trendRow
 
 	err := s.DB.Model(&models.FinancialRecord{}).
 		Select(
+			"currency",
 			"TO_CHAR(date, 'YYYY-MM') AS month",
 			"COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income",
 			"COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expense",
 		).
-		Group("TO_CHAR(date, 'YYYY-MM')").
+		Group("currency, TO_CHAR(date, 'YYYY-MM')").
 		Order("month ASC").
 		Scan(&rows).Error
 
 	if err != nil {
-		return nil, errors.New("failed to retrieve trend data")
+		return nil, apperrors.Internal("failed to retrieve trend data", err)
 	}
 
 	trends := make([]map[string]interface{}, 0, len(rows))
 	for _, r := range rows {
 		trends = append(trends, map[string]interface{}{
-			"month":   r.Month,
-			"income":  r.Income,
-			"expense": r.Expense,
-			"net":     r.Income - r.Expense,
+			"currency": r.Currency,
+			"month":    r.Month,
+			"income":   r.Income,
+			"expense":  r.Expense,
+			"net":      r.Income.Sub(r.Expense),
 		})
 	}
 
@@ -83,13 +92,14 @@ func (s *DashboardService) GetTrends() ([]map[string]interface{}, error) {
 }
 
 // GetCategoryBreakdown returns per-category totals for income, expense,
-// overall total, and transaction count, ordered by total descending.
+// overall total, and transaction count, grouped by currency and ordered by total descending.
 func (s *DashboardService) GetCategoryBreakdown() ([]map[string]interface{}, error) {
 	type categoryRow struct {
+		Currency     string
 		Category     string
-		TotalIncome  float64
-		TotalExpense float64
-		Total        float64
+		TotalIncome  decimal.Decimal
+		TotalExpense decimal.Decimal
+		Total        decimal.Decimal
 		Count        int64
 	}
 
@@ -97,23 +107,25 @@ func (s *DashboardService) GetCategoryBreakdown() ([]map[string]interface{}, err
 
 	err := s.DB.Model(&models.FinancialRecord{}).
 		Select(
+			"currency",
 			"category",
 			"COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS total_income",
 			"COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS total_expense",
 			"COALESCE(SUM(amount), 0) AS total",
 			"COUNT(*) AS count",
 		).
-		Group("category").
+		Group("currency, category").
 		Order("total DESC").
 		Scan(&rows).Error
 
 	if err != nil {
-		return nil, errors.New("failed to retrieve category breakdown")
+		return nil, apperrors.Internal("failed to retrieve category breakdown", err)
 	}
 
 	breakdown := make([]map[string]interface{}, 0, len(rows))
 	for _, r := range rows {
 		breakdown = append(breakdown, map[string]interface{}{
+			"currency":      r.Currency,
 			"category":      r.Category,
 			"total_income":  r.TotalIncome,
 			"total_expense": r.TotalExpense,

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"net/http"
-	"strings"
 
 	"finance-dashboard/services"
 	"finance-dashboard/utils"
@@ -19,7 +18,7 @@ type UserHandler struct {
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	users, err := h.Service.GetAllUsers()
 	if err != nil {
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
@@ -38,15 +37,7 @@ func (h *UserHandler) UpdateUser(c *gin.Context) {
 
 	user, err := h.Service.UpdateUser(id, updates)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.Error(c, http.StatusNotFound, err.Error())
-			return
-		}
-		if strings.Contains(err.Error(), "invalid role") || strings.Contains(err.Error(), "role must be") {
-			utils.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
@@ -59,11 +50,7 @@ func (h *UserHandler) DeleteUser(c *gin.Context) {
 
 	err := h.Service.DeleteUser(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.Error(c, http.StatusNotFound, err.Error())
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 

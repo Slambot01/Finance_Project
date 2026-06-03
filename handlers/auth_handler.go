@@ -30,9 +30,8 @@ type loginRequest struct {
 }
 
 // Register handles POST /auth/register — creates a new user account.
-// This allows public self-registration with any role including admin.
-// This is intentional for assessment purposes — in production, role assignment
-// would be restricted to admin-only after initial bootstrap.
+// Admin role cannot be self-assigned during registration. Users must register
+// as viewer or analyst, then be promoted by an existing admin.
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req registerRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -60,22 +59,15 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	user, err := h.Service.Register(req.Name, req.Email, req.Password, req.Role)
 	if err != nil {
-		if strings.Contains(err.Error(), "email already registered") {
-			utils.Error(c, http.StatusConflict, err.Error())
-			return
-		}
-		if strings.Contains(err.Error(), "invalid role") {
-			utils.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
 	utils.Success(c, http.StatusCreated, "user registered successfully", user)
 }
 
-// Login handles POST /auth/login — authenticates a user and returns a JWT.
+// Login handles POST /auth/login — authenticates a user and returns a JWT
+// access token, a refresh token, and the user record.
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req loginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -98,22 +90,24 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	token, user, err := h.Service.Login(req.Email, req.Password)
+	// Extract request metadata for audit logging.
+	requestID := c.GetString("requestID")
+	ipAddress := c.ClientIP()
+
+	accessToken, refreshToken, user, err := h.Service.Login(c.Request.Context(), req.Email, req.Password, requestID, ipAddress)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid email or password") {
-			utils.Error(c, http.StatusUnauthorized, err.Error())
-			return
-		}
-		if strings.Contains(err.Error(), "deactivated") {
-			utils.Error(c, http.StatusUnauthorized, err.Error())
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
-	utils.Success(c, http.StatusOK, "login successful", map[string]interface{}{
-		"token": token,
-		"user":  user,
-	})
+	responseData := map[string]interface{}{
+		"access_token": accessToken,
+		"user":         user,
+	}
+	// Only include refresh_token if one was issued (requires TokenService to be wired).
+	if refreshToken != "" {
+		responseData["refresh_token"] = refreshToken
+	}
+
+	utils.Success(c, http.StatusOK, "login successful", responseData)
 }

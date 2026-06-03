@@ -3,7 +3,6 @@ package handlers
 import (
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"finance-dashboard/models"
@@ -45,14 +44,7 @@ func (h *RecordHandler) CreateRecord(c *gin.Context) {
 
 	created, err := h.Service.CreateRecord(&record)
 	if err != nil {
-		if strings.Contains(err.Error(), "invalid type") ||
-			strings.Contains(err.Error(), "amount must be") ||
-			strings.Contains(err.Error(), "category is required") ||
-			strings.Contains(err.Error(), "date is required") {
-			utils.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
@@ -101,7 +93,7 @@ func (h *RecordHandler) GetRecords(c *gin.Context) {
 
 	records, total, err := h.Service.GetRecords(filters, page, pageSize)
 	if err != nil {
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
@@ -119,11 +111,7 @@ func (h *RecordHandler) GetRecordByID(c *gin.Context) {
 
 	record, err := h.Service.GetRecordByID(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.Error(c, http.StatusNotFound, err.Error())
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
@@ -142,17 +130,7 @@ func (h *RecordHandler) UpdateRecord(c *gin.Context) {
 
 	record, err := h.Service.UpdateRecord(id, updates)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.Error(c, http.StatusNotFound, err.Error())
-			return
-		}
-		if strings.Contains(err.Error(), "invalid type") ||
-			strings.Contains(err.Error(), "amount must be") ||
-			strings.Contains(err.Error(), "type must be") {
-			utils.Error(c, http.StatusBadRequest, err.Error())
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
@@ -165,11 +143,7 @@ func (h *RecordHandler) DeleteRecord(c *gin.Context) {
 
 	err := h.Service.DeleteRecord(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			utils.Error(c, http.StatusNotFound, err.Error())
-			return
-		}
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 

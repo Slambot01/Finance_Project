@@ -18,7 +18,7 @@ type DashboardHandler struct {
 func (h *DashboardHandler) GetSummary(c *gin.Context) {
 	summary, err := h.Service.GetSummary()
 	if err != nil {
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
@@ -29,7 +29,7 @@ func (h *DashboardHandler) GetSummary(c *gin.Context) {
 func (h *DashboardHandler) GetTrends(c *gin.Context) {
 	trends, err := h.Service.GetTrends()
 	if err != nil {
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 
@@ -40,7 +40,7 @@ func (h *DashboardHandler) GetTrends(c *gin.Context) {
 func (h *DashboardHandler) GetCategoryBreakdown(c *gin.Context) {
 	breakdown, err := h.Service.GetCategoryBreakdown()
 	if err != nil {
-		utils.Error(c, http.StatusInternalServerError, err.Error())
+		handleServiceError(c, err)
 		return
 	}
 

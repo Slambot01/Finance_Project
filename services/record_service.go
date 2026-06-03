@@ -1,19 +1,21 @@
 package services
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	apperrors "finance-dashboard/errors"
 	"finance-dashboard/models"
 
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 )
 
 // RecordService encapsulates financial record business logic.
 type RecordService struct {
-	DB *gorm.DB
+	DB           *gorm.DB
+	AuditService *AuditService // optional — if nil, audit logging is skipped
 }
 
 // validRecordTypes is the canonical set of allowed transaction types.
@@ -22,26 +24,57 @@ var validRecordTypes = map[models.RecordType]struct{}{
 	models.RecordExpense: {},
 }
 
-// CreateRecord validates and persists a new financial record.
+var validCurrencies = map[string]struct{}{
+	"INR": {},
+	"USD": {},
+	"EUR": {},
+	"GBP": {},
+}
+
+// CreateRecord validates and persists a new financial record within a
+// database transaction to ensure atomicity.
 func (s *RecordService) CreateRecord(record *models.FinancialRecord) (*models.FinancialRecord, error) {
 	if _, ok := validRecordTypes[record.Type]; !ok {
-		return nil, errors.New("invalid type: must be one of income, expense")
+		return nil, apperrors.Validation("invalid type: must be one of income, expense")
 	}
 
-	if record.Amount <= 0 {
-		return nil, errors.New("amount must be greater than zero")
+	if record.Amount.LessThanOrEqual(decimal.Zero) {
+		return nil, apperrors.Validation("amount must be greater than zero")
 	}
+
+	if record.Currency == "" {
+		record.Currency = "INR"
+	} else if _, ok := validCurrencies[strings.ToUpper(record.Currency)]; !ok {
+		return nil, apperrors.Validation("invalid currency")
+	}
+	record.Currency = strings.ToUpper(record.Currency)
 
 	if strings.TrimSpace(record.Category) == "" {
-		return nil, errors.New("category is required")
+		return nil, apperrors.Validation("category is required")
 	}
 
 	if record.Date.IsZero() {
-		return nil, errors.New("date is required and must be a valid date")
+		return nil, apperrors.Validation("date is required and must be a valid date")
 	}
 
-	if err := s.DB.Create(record).Error; err != nil {
-		return nil, errors.New("failed to create financial record")
+	err := s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(record).Error; err != nil {
+			return apperrors.Internal("failed to create financial record", err)
+		}
+
+		// Emit audit event within the same transaction.
+		if s.AuditService != nil {
+			event := BuildAuditEvent("record", record.ID.String(), models.AuditCreate, record.UserID.String(), "", "", record)
+			if err := s.AuditService.LogEvent(tx, event); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
 	return record, nil
@@ -87,14 +120,14 @@ func (s *RecordService) GetRecords(filters map[string]string, page, pageSize int
 	// Total count for pagination metadata.
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, errors.New("failed to count financial records")
+		return nil, 0, apperrors.Internal("failed to count financial records", err)
 	}
 
 	// Fetch the page.
 	var records []models.FinancialRecord
 	offset := (page - 1) * pageSize
 	if err := query.Order("date DESC").Offset(offset).Limit(pageSize).Find(&records).Error; err != nil {
-		return nil, 0, errors.New("failed to retrieve financial records")
+		return nil, 0, apperrors.Internal("failed to retrieve financial records", err)
 	}
 
 	return records, total, nil
@@ -104,16 +137,16 @@ func (s *RecordService) GetRecords(filters map[string]string, page, pageSize int
 func (s *RecordService) GetRecordByID(id string) (*models.FinancialRecord, error) {
 	var record models.FinancialRecord
 	if err := s.DB.Where("id = ?", id).First(&record).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("financial record with id %s not found", id)
+		if err == gorm.ErrRecordNotFound {
+			return nil, apperrors.NotFound("financial record", id)
 		}
-		return nil, errors.New("failed to retrieve financial record")
+		return nil, apperrors.Internal("failed to retrieve financial record", err)
 	}
 	return &record, nil
 }
 
-// UpdateRecord applies a partial update to the record identified by id.
-// Validates type and amount if present in the updates map.
+// UpdateRecord applies a partial update to the record identified by id
+// within a database transaction. Validates type and amount if present.
 func (s *RecordService) UpdateRecord(id string, updates map[string]interface{}) (*models.FinancialRecord, error) {
 	record, err := s.GetRecordByID(id)
 	if err != nil {
@@ -124,46 +157,95 @@ func (s *RecordService) UpdateRecord(id string, updates map[string]interface{}) 
 	if typeVal, ok := updates["type"]; ok {
 		typeStr, valid := typeVal.(string)
 		if !valid {
-			return nil, errors.New("type must be a string")
+			return nil, apperrors.Validation("type must be a string")
 		}
 		if _, permitted := validRecordTypes[models.RecordType(typeStr)]; !permitted {
-			return nil, errors.New("invalid type: must be one of income, expense")
+			return nil, apperrors.Validation("invalid type: must be one of income, expense")
 		}
 	}
 
 	// Validate amount if being changed.
 	if amountVal, ok := updates["amount"]; ok {
-		// JSON numbers are decoded as float64 by default.
-		amount, valid := amountVal.(float64)
-		if !valid {
-			return nil, errors.New("amount must be a number")
+		var amount decimal.Decimal
+		switch v := amountVal.(type) {
+		case float64:
+			amount = decimal.NewFromFloat(v)
+		case string:
+			var err error
+			amount, err = decimal.NewFromString(v)
+			if err != nil {
+				return nil, apperrors.Validation("amount must be a valid number string")
+			}
+		default:
+			return nil, apperrors.Validation("amount must be a number or numeric string")
 		}
-		if amount <= 0 {
-			return nil, errors.New("amount must be greater than zero")
+
+		if amount.LessThanOrEqual(decimal.Zero) {
+			return nil, apperrors.Validation("amount must be greater than zero")
 		}
+		updates["amount"] = amount
 	}
 
-	if err := s.DB.Model(record).Updates(updates).Error; err != nil {
-		return nil, errors.New("failed to update financial record")
+	// Validate currency if being changed.
+	if currencyVal, ok := updates["currency"]; ok {
+		currencyStr, valid := currencyVal.(string)
+		if !valid {
+			return nil, apperrors.Validation("currency must be a string")
+		}
+		if _, permitted := validCurrencies[strings.ToUpper(currencyStr)]; !permitted {
+			return nil, apperrors.Validation("invalid currency")
+		}
+		updates["currency"] = strings.ToUpper(currencyStr)
+	}
+
+	txErr := s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(record).Updates(updates).Error; err != nil {
+			return apperrors.Internal("failed to update financial record", err)
+		}
+
+		// Emit audit event within the same transaction.
+		if s.AuditService != nil {
+			event := BuildAuditEvent("record", record.ID.String(), models.AuditUpdate, record.UserID.String(), "", "", updates)
+			if err := s.AuditService.LogEvent(tx, event); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if txErr != nil {
+		return nil, txErr
 	}
 
 	return record, nil
 }
 
-// DeleteRecord performs a soft delete on the record identified by id.
-// GORM automatically sets the DeletedAt timestamp.
+// DeleteRecord performs a soft delete on the record identified by id
+// within a database transaction. GORM automatically sets the DeletedAt timestamp.
 func (s *RecordService) DeleteRecord(id string) error {
 	var record models.FinancialRecord
-	if err := s.DB.Where("id = ?", id).First(&record).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return fmt.Errorf("financial record with id %s not found", id)
+
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("id = ?", id).First(&record).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return apperrors.NotFound("financial record", id)
+			}
+			return apperrors.Internal("failed to retrieve financial record", err)
 		}
-		return errors.New("failed to retrieve financial record")
-	}
 
-	if err := s.DB.Delete(&record).Error; err != nil {
-		return errors.New("failed to delete financial record")
-	}
+		if err := tx.Delete(&record).Error; err != nil {
+			return apperrors.Internal(fmt.Sprintf("failed to delete financial record %s", id), err)
+		}
 
-	return nil
+		// Emit audit event within the same transaction.
+		if s.AuditService != nil {
+			event := BuildAuditEvent("record", record.ID.String(), models.AuditDelete, record.UserID.String(), "", "", nil)
+			if err := s.AuditService.LogEvent(tx, event); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }

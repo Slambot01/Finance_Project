@@ -9,6 +9,7 @@ import (
 	"finance-dashboard/models"
 
 	"github.com/joho/godotenv"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -22,7 +23,7 @@ func setupTestDB() *gorm.DB {
 	_ = godotenv.Load("../.env.test")
 	_ = godotenv.Load("../.env")
 
-	host := getTestEnv("TEST_DB_HOST", getTestEnv("DB_HOST", "localhost"))
+	host := getTestEnv("TEST_DB_HOST", getTestEnv("DB_HOST", "127.0.0.1"))
 	port := getTestEnv("TEST_DB_PORT", getTestEnv("DB_PORT", "5432"))
 	user := getTestEnv("TEST_DB_USER", getTestEnv("DB_USER", "postgres"))
 	password := getTestEnv("TEST_DB_PASSWORD", getTestEnv("DB_PASSWORD", ""))
@@ -39,15 +40,29 @@ func setupTestDB() *gorm.DB {
 		host, port, user, password, dbName,
 	)
 
+	log.Println("Connecting to test database with DSN:", dsn)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to test database: %v", err)
 	}
+	log.Println("Connected to test database.")
 
+	log.Println("Running AutoMigrate...")
 	// Auto-migrate all models.
-	if err := db.AutoMigrate(&models.User{}, &models.FinancialRecord{}); err != nil {
+	err = db.AutoMigrate(
+		&models.User{},
+		&models.FinancialRecord{},
+		&models.Account{},
+		&models.LedgerEntry{},
+		&models.AuditEvent{},
+		&models.OutboxEntry{},
+		&models.IdempotencyKey{},
+		&models.RefreshToken{},
+	)
+	if err != nil {
 		log.Fatalf("Failed to auto-migrate test database: %v", err)
 	}
+	log.Println("AutoMigrate completed.")
 
 	log.Printf("Connected to test database: %s", dbName)
 	return db
@@ -57,6 +72,33 @@ func setupTestDB() *gorm.DB {
 func cleanupTables(db *gorm.DB) {
 	db.Exec("TRUNCATE TABLE financial_records CASCADE")
 	db.Exec("TRUNCATE TABLE users CASCADE")
+}
+
+// createTestUser is a helper that creates a user with the given role directly
+// in the database, bypassing the registration service. This is necessary because
+// admin self-registration is blocked — admins can only be created by other admins
+// in production, or directly in the DB for tests.
+func createTestUser(t *testing.T, name, email, role string) *models.User {
+	t.Helper()
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash password: %v", err)
+	}
+
+	user := models.User{
+		Name:     name,
+		Email:    email,
+		Password: string(hashedPassword),
+		Role:     models.RoleType(role),
+		IsActive: true,
+	}
+
+	if err := testDB.Create(&user).Error; err != nil {
+		t.Fatalf("failed to create test user: %v", err)
+	}
+
+	return &user
 }
 
 // getTestEnv retrieves an environment variable or returns the fallback.

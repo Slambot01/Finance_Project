@@ -7,11 +7,12 @@ import (
 	"finance-dashboard/models"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 )
 
 // createTestRecord is a helper that creates a financial record with the given fields.
-func createTestRecord(t *testing.T, userID uuid.UUID, amount float64, recordType models.RecordType, category string, date time.Time) *models.FinancialRecord {
+func createTestRecord(t *testing.T, userID uuid.UUID, amount decimal.Decimal, recordType models.RecordType, category string, date time.Time) *models.FinancialRecord {
 	t.Helper()
 	service := &RecordService{DB: testDB}
 	record := &models.FinancialRecord{
@@ -36,7 +37,7 @@ func TestRecordService_CreateRecord(t *testing.T) {
 
 		record := &models.FinancialRecord{
 			UserID:   user.ID,
-			Amount:   1500.50,
+			Amount:   decimal.NewFromFloat(1500.50),
 			Type:     models.RecordIncome,
 			Category: "salary",
 			Date:     time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
@@ -48,7 +49,7 @@ func TestRecordService_CreateRecord(t *testing.T) {
 		assert.NotNil(t, created)
 		assert.NotEqual(t, uuid.Nil, created.ID)
 		assert.Equal(t, user.ID, created.UserID)
-		assert.Equal(t, 1500.50, created.Amount)
+		assert.True(t, decimal.NewFromFloat(1500.50).Equal(created.Amount))
 		assert.Equal(t, models.RecordIncome, created.Type)
 		assert.Equal(t, "salary", created.Category)
 	})
@@ -59,7 +60,7 @@ func TestRecordService_CreateRecord(t *testing.T) {
 
 		record := &models.FinancialRecord{
 			UserID:   user.ID,
-			Amount:   100.00,
+			Amount:   decimal.NewFromFloat(100.00),
 			Type:     "refund",
 			Category: "misc",
 			Date:     time.Now(),
@@ -77,7 +78,7 @@ func TestRecordService_CreateRecord(t *testing.T) {
 
 		record := &models.FinancialRecord{
 			UserID:   user.ID,
-			Amount:   -50.00,
+			Amount:   decimal.NewFromFloat(-50.00),
 			Type:     models.RecordExpense,
 			Category: "food",
 			Date:     time.Now(),
@@ -95,7 +96,7 @@ func TestRecordService_CreateRecord(t *testing.T) {
 
 		record := &models.FinancialRecord{
 			UserID:   user.ID,
-			Amount:   0,
+			Amount:   decimal.Zero,
 			Type:     models.RecordExpense,
 			Category: "food",
 			Date:     time.Now(),
@@ -113,7 +114,7 @@ func TestRecordService_CreateRecord(t *testing.T) {
 
 		record := &models.FinancialRecord{
 			UserID:   user.ID,
-			Amount:   100.00,
+			Amount:   decimal.NewFromFloat(100.00),
 			Type:     models.RecordIncome,
 			Category: "",
 			Date:     time.Now(),
@@ -131,7 +132,7 @@ func TestRecordService_CreateRecord(t *testing.T) {
 
 		record := &models.FinancialRecord{
 			UserID:   user.ID,
-			Amount:   100.00,
+			Amount:   decimal.NewFromFloat(100.00),
 			Type:     models.RecordIncome,
 			Category: "salary",
 			Date:     time.Time{}, // zero value
@@ -151,7 +152,7 @@ func TestRecordService_GetRecords(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "Paginator", "paginator@example.com", "admin")
 		for i := 0; i < 15; i++ {
-			createTestRecord(t, user.ID, 100.00, models.RecordIncome, "salary", time.Now())
+			createTestRecord(t, user.ID, decimal.NewFromFloat(100.00), models.RecordIncome, "salary", time.Now())
 		}
 
 		records, total, err := service.GetRecords(map[string]string{}, 1, 10)
@@ -164,9 +165,9 @@ func TestRecordService_GetRecords(t *testing.T) {
 	t.Run("GetRecords filter by type", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "TypeFilter", "typefilter@example.com", "admin")
-		createTestRecord(t, user.ID, 500.00, models.RecordIncome, "salary", time.Now())
-		createTestRecord(t, user.ID, 200.00, models.RecordExpense, "food", time.Now())
-		createTestRecord(t, user.ID, 300.00, models.RecordIncome, "bonus", time.Now())
+		createTestRecord(t, user.ID, decimal.NewFromFloat(500.00), models.RecordIncome, "salary", time.Now())
+		createTestRecord(t, user.ID, decimal.NewFromFloat(200.00), models.RecordExpense, "food", time.Now())
+		createTestRecord(t, user.ID, decimal.NewFromFloat(300.00), models.RecordIncome, "bonus", time.Now())
 
 		records, total, err := service.GetRecords(map[string]string{"type": "income"}, 1, 10)
 
@@ -181,9 +182,9 @@ func TestRecordService_GetRecords(t *testing.T) {
 	t.Run("GetRecords filter by category", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "CatFilter", "catfilter@example.com", "admin")
-		createTestRecord(t, user.ID, 500.00, models.RecordIncome, "salary", time.Now())
-		createTestRecord(t, user.ID, 200.00, models.RecordExpense, "food", time.Now())
-		createTestRecord(t, user.ID, 100.00, models.RecordExpense, "food", time.Now())
+		createTestRecord(t, user.ID, decimal.NewFromFloat(500.00), models.RecordIncome, "salary", time.Now())
+		createTestRecord(t, user.ID, decimal.NewFromFloat(200.00), models.RecordExpense, "food", time.Now())
+		createTestRecord(t, user.ID, decimal.NewFromFloat(100.00), models.RecordExpense, "food", time.Now())
 
 		records, total, err := service.GetRecords(map[string]string{"category": "food"}, 1, 10)
 
@@ -198,9 +199,9 @@ func TestRecordService_GetRecords(t *testing.T) {
 	t.Run("GetRecords filter by date range", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "DateFilter", "datefilter@example.com", "admin")
-		createTestRecord(t, user.ID, 100.00, models.RecordIncome, "a", time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC))
-		createTestRecord(t, user.ID, 200.00, models.RecordIncome, "b", time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC))
-		createTestRecord(t, user.ID, 300.00, models.RecordIncome, "c", time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC))
+		createTestRecord(t, user.ID, decimal.NewFromFloat(100.00), models.RecordIncome, "a", time.Date(2026, 1, 15, 0, 0, 0, 0, time.UTC))
+		createTestRecord(t, user.ID, decimal.NewFromFloat(200.00), models.RecordIncome, "b", time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC))
+		createTestRecord(t, user.ID, decimal.NewFromFloat(300.00), models.RecordIncome, "c", time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC))
 
 		filters := map[string]string{
 			"start_date": "2026-02-01",
@@ -211,16 +212,16 @@ func TestRecordService_GetRecords(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, int64(1), total)
 		assert.Len(t, records, 1)
-		assert.Equal(t, 200.00, records[0].Amount)
+		assert.True(t, decimal.NewFromFloat(200.00).Equal(records[0].Amount))
 	})
 
 	t.Run("GetRecords filter by user_id", func(t *testing.T) {
 		cleanupTables(testDB)
 		user1 := createTestUser(t, "User1", "user1@example.com", "admin")
 		user2 := createTestUser(t, "User2", "user2@example.com", "viewer")
-		createTestRecord(t, user1.ID, 500.00, models.RecordIncome, "salary", time.Now())
-		createTestRecord(t, user1.ID, 300.00, models.RecordExpense, "rent", time.Now())
-		createTestRecord(t, user2.ID, 100.00, models.RecordIncome, "freelance", time.Now())
+		createTestRecord(t, user1.ID, decimal.NewFromFloat(500.00), models.RecordIncome, "salary", time.Now())
+		createTestRecord(t, user1.ID, decimal.NewFromFloat(300.00), models.RecordExpense, "rent", time.Now())
+		createTestRecord(t, user2.ID, decimal.NewFromFloat(100.00), models.RecordIncome, "freelance", time.Now())
 
 		records, total, err := service.GetRecords(map[string]string{"user_id": user2.ID.String()}, 1, 10)
 
@@ -234,7 +235,7 @@ func TestRecordService_GetRecords(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "PaginTest", "pagintest@example.com", "admin")
 		for i := 0; i < 25; i++ {
-			createTestRecord(t, user.ID, float64(i+1)*10, models.RecordIncome, "test", time.Now())
+			createTestRecord(t, user.ID, decimal.NewFromFloat(float64(i+1)*10), models.RecordIncome, "test", time.Now())
 		}
 
 		records, total, err := service.GetRecords(map[string]string{}, 2, 10)
@@ -247,7 +248,7 @@ func TestRecordService_GetRecords(t *testing.T) {
 	t.Run("GetRecords page 0 or negative defaults to page 1", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "PageZero", "pagezero@example.com", "admin")
-		createTestRecord(t, user.ID, 100.00, models.RecordIncome, "test", time.Now())
+		createTestRecord(t, user.ID, decimal.NewFromFloat(100.00), models.RecordIncome, "test", time.Now())
 
 		records, total, err := service.GetRecords(map[string]string{}, 0, 10)
 
@@ -270,14 +271,14 @@ func TestRecordService_GetRecordByID(t *testing.T) {
 	t.Run("GetRecordByID success", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "GetByID", "getbyid@example.com", "admin")
-		created := createTestRecord(t, user.ID, 750.00, models.RecordExpense, "rent", time.Now())
+		created := createTestRecord(t, user.ID, decimal.NewFromFloat(750.00), models.RecordExpense, "rent", time.Now())
 
 		record, err := service.GetRecordByID(created.ID.String())
 
 		assert.NoError(t, err)
 		assert.NotNil(t, record)
 		assert.Equal(t, created.ID, record.ID)
-		assert.Equal(t, 750.00, record.Amount)
+		assert.True(t, decimal.NewFromFloat(750.00).Equal(record.Amount))
 	})
 
 	t.Run("GetRecordByID not found", func(t *testing.T) {
@@ -297,23 +298,23 @@ func TestRecordService_UpdateRecord(t *testing.T) {
 	t.Run("UpdateRecord success", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "Updater", "updater@example.com", "admin")
-		created := createTestRecord(t, user.ID, 100.00, models.RecordIncome, "salary", time.Now())
+		created := createTestRecord(t, user.ID, decimal.NewFromFloat(100.00), models.RecordIncome, "salary", time.Now())
 
 		updated, err := service.UpdateRecord(created.ID.String(), map[string]interface{}{
-			"amount":   200.00,
+			"amount":   200.00, // JSON decoding would give a float64
 			"category": "bonus",
 		})
 
 		assert.NoError(t, err)
 		assert.NotNil(t, updated)
-		assert.Equal(t, 200.00, updated.Amount)
+		assert.True(t, decimal.NewFromFloat(200.00).Equal(updated.Amount))
 		assert.Equal(t, "bonus", updated.Category)
 	})
 
 	t.Run("UpdateRecord invalid type", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "BadUpdate", "badupdate@example.com", "admin")
-		created := createTestRecord(t, user.ID, 100.00, models.RecordIncome, "salary", time.Now())
+		created := createTestRecord(t, user.ID, decimal.NewFromFloat(100.00), models.RecordIncome, "salary", time.Now())
 
 		updated, err := service.UpdateRecord(created.ID.String(), map[string]interface{}{
 			"type": "refund",
@@ -343,7 +344,7 @@ func TestRecordService_DeleteRecord(t *testing.T) {
 	t.Run("DeleteRecord success with soft delete", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "SoftDel", "softdel@example.com", "admin")
-		created := createTestRecord(t, user.ID, 500.00, models.RecordExpense, "rent", time.Now())
+		created := createTestRecord(t, user.ID, decimal.NewFromFloat(500.00), models.RecordExpense, "rent", time.Now())
 
 		err := service.DeleteRecord(created.ID.String())
 		assert.NoError(t, err)
@@ -358,7 +359,7 @@ func TestRecordService_DeleteRecord(t *testing.T) {
 	t.Run("DeleteRecord soft delete verify — record still exists in DB with Unscoped", func(t *testing.T) {
 		cleanupTables(testDB)
 		user := createTestUser(t, "Verifier", "verifier@example.com", "admin")
-		created := createTestRecord(t, user.ID, 250.00, models.RecordIncome, "freelance", time.Now())
+		created := createTestRecord(t, user.ID, decimal.NewFromFloat(250.00), models.RecordIncome, "freelance", time.Now())
 
 		err := service.DeleteRecord(created.ID.String())
 		assert.NoError(t, err)

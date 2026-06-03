@@ -9,14 +9,6 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// createTestUser is a helper that registers a user and returns it.
-func createTestUser(t *testing.T, name, email, role string) *models.User {
-	t.Helper()
-	authService := &AuthService{DB: testDB}
-	user, err := authService.Register(name, email, "password123", role)
-	assert.NoError(t, err)
-	return user
-}
 
 func TestUserService_GetAllUsers(t *testing.T) {
 	service := &UserService{DB: testDB}

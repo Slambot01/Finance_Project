@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,30 +11,50 @@ import (
 func TestAuthService_Register(t *testing.T) {
 	service := &AuthService{DB: testDB}
 
-	t.Run("Register success with valid fields", func(t *testing.T) {
+	t.Run("Register success with valid fields as viewer", func(t *testing.T) {
 		cleanupTables(testDB)
 
-		user, err := service.Register("Alice", "alice@example.com", "password123", "admin")
+		user, err := service.Register("Alice", "alice@example.com", "password123", "viewer")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, user)
 		assert.Equal(t, "Alice", user.Name)
 		assert.Equal(t, "alice@example.com", user.Email)
-		assert.Equal(t, "admin", string(user.Role))
+		assert.Equal(t, "viewer", string(user.Role))
 		assert.True(t, user.IsActive)
 		// Password should be hashed, not plaintext.
 		assert.NotEqual(t, "password123", user.Password)
 		assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(user.Password), []byte("password123")))
 	})
 
+	t.Run("Register success as analyst", func(t *testing.T) {
+		cleanupTables(testDB)
+
+		user, err := service.Register("Bob", "bob@example.com", "password123", "analyst")
+
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, "analyst", string(user.Role))
+	})
+
 	t.Run("Register with empty role defaults to viewer", func(t *testing.T) {
 		cleanupTables(testDB)
 
-		user, err := service.Register("Bob", "bob@example.com", "password123", "")
+		user, err := service.Register("Carol", "carol@example.com", "password123", "")
 
 		assert.NoError(t, err)
 		assert.NotNil(t, user)
 		assert.Equal(t, "viewer", string(user.Role))
+	})
+
+	t.Run("Register as admin is rejected — privilege escalation prevention", func(t *testing.T) {
+		cleanupTables(testDB)
+
+		user, err := service.Register("Mallory", "mallory@example.com", "password123", "admin")
+
+		assert.Error(t, err)
+		assert.Nil(t, user)
+		assert.Contains(t, err.Error(), "admin role cannot be self-assigned")
 	})
 
 	t.Run("Register duplicate email returns error", func(t *testing.T) {
@@ -62,15 +83,16 @@ func TestAuthService_Register(t *testing.T) {
 
 func TestAuthService_Login(t *testing.T) {
 	service := &AuthService{DB: testDB}
+	ctx := context.Background()
 
 	t.Run("Login success returns token and user", func(t *testing.T) {
 		cleanupTables(testDB)
 		_, _ = service.Register("LoginUser", "login@example.com", "correctpass", "analyst")
 
-		token, user, err := service.Login("login@example.com", "correctpass")
+		accessToken, _, user, err := service.Login(ctx, "login@example.com", "correctpass", "", "")
 
 		assert.NoError(t, err)
-		assert.NotEmpty(t, token)
+		assert.NotEmpty(t, accessToken)
 		assert.NotNil(t, user)
 		assert.Equal(t, "login@example.com", user.Email)
 		assert.Equal(t, "analyst", string(user.Role))
@@ -80,10 +102,10 @@ func TestAuthService_Login(t *testing.T) {
 		cleanupTables(testDB)
 		_, _ = service.Register("WrongPass", "wrongpass@example.com", "correctpass", "viewer")
 
-		token, user, err := service.Login("wrongpass@example.com", "wrongpassword")
+		accessToken, _, user, err := service.Login(ctx, "wrongpass@example.com", "wrongpassword", "", "")
 
 		assert.Error(t, err)
-		assert.Empty(t, token)
+		assert.Empty(t, accessToken)
 		assert.Nil(t, user)
 		assert.Contains(t, err.Error(), "invalid email or password")
 	})
@@ -91,10 +113,10 @@ func TestAuthService_Login(t *testing.T) {
 	t.Run("Login non-existent email returns same error as wrong password", func(t *testing.T) {
 		cleanupTables(testDB)
 
-		token, user, err := service.Login("nobody@example.com", "anypassword")
+		accessToken, _, user, err := service.Login(ctx, "nobody@example.com", "anypassword", "", "")
 
 		assert.Error(t, err)
-		assert.Empty(t, token)
+		assert.Empty(t, accessToken)
 		assert.Nil(t, user)
 		assert.Contains(t, err.Error(), "invalid email or password")
 	})
@@ -105,10 +127,10 @@ func TestAuthService_Login(t *testing.T) {
 		// Deactivate the user directly in DB.
 		testDB.Model(user).Update("is_active", false)
 
-		token, returnedUser, err := service.Login("deactivated@example.com", "password123")
+		accessToken, _, returnedUser, err := service.Login(ctx, "deactivated@example.com", "password123", "", "")
 
 		assert.Error(t, err)
-		assert.Empty(t, token)
+		assert.Empty(t, accessToken)
 		assert.Nil(t, returnedUser)
 		assert.Contains(t, err.Error(), "deactivated")
 	})

@@ -33,6 +33,17 @@ func GenerateToken(userID, email, role string) (string, error) {
 		}
 	}
 
+	return GenerateTokenWithExpiry(userID, email, role, secret, time.Duration(expiryHours)*time.Hour)
+}
+
+// GenerateTokenWithExpiry creates a signed HS256 JWT with an explicit secret
+// and expiry duration. This is used by the TokenService to generate short-lived
+// access tokens (15 min) while keeping the legacy GenerateToken for backward compatibility.
+func GenerateTokenWithExpiry(userID, email, role, secret string, expiry time.Duration) (string, error) {
+	if secret == "" {
+		return "", errors.New("JWT secret must not be empty")
+	}
+
 	now := time.Now()
 	claims := Claims{
 		UserID: userID,
@@ -40,7 +51,7 @@ func GenerateToken(userID, email, role string) (string, error) {
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(expiryHours) * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(now.Add(expiry)),
 		},
 	}
 
@@ -54,6 +65,16 @@ func ValidateToken(tokenString string) (*Claims, error) {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
 		return nil, errors.New("JWT_SECRET environment variable is not set")
+	}
+
+	return ValidateTokenWithSecret(tokenString, secret)
+}
+
+// ValidateTokenWithSecret parses and validates a token using an explicit secret.
+// Used by the TokenService for consistent secret management.
+func ValidateTokenWithSecret(tokenString, secret string) (*Claims, error) {
+	if secret == "" {
+		return nil, errors.New("JWT secret must not be empty")
 	}
 
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(t *jwt.Token) (interface{}, error) {

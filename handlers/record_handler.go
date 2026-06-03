@@ -106,6 +106,7 @@ func (h *RecordHandler) GetRecords(c *gin.Context) {
 }
 
 // GetRecordByID handles GET /records/:id — returns a single record.
+// Viewers are restricted to their own records.
 func (h *RecordHandler) GetRecordByID(c *gin.Context) {
 	id := c.Param("id")
 
@@ -113,6 +114,16 @@ func (h *RecordHandler) GetRecordByID(c *gin.Context) {
 	if err != nil {
 		handleServiceError(c, err)
 		return
+	}
+
+	// Enforce ownership for viewer role.
+	role := c.GetString("userRole")
+	if role == string(models.RoleViewer) {
+		userID := c.GetString("userID")
+		if record.UserID.String() != userID {
+			utils.Error(c, http.StatusForbidden, "access denied: you can only view your own records")
+			return
+		}
 	}
 
 	utils.Success(c, http.StatusOK, "financial record retrieved successfully", record)

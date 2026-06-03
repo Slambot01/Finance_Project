@@ -82,7 +82,16 @@ func TestAuthService_Register(t *testing.T) {
 }
 
 func TestAuthService_Login(t *testing.T) {
-	service := &AuthService{DB: testDB}
+	tokenService := &TokenService{
+		DB:                     testDB,
+		JWTSecret:              "test-secret-key",
+		AccessTokenExpiryMins:  15,
+		RefreshTokenExpiryDays: 7,
+	}
+	service := &AuthService{
+		DB:           testDB,
+		TokenService: tokenService,
+	}
 	ctx := context.Background()
 
 	t.Run("Login success returns token and user", func(t *testing.T) {

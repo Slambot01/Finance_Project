@@ -11,7 +11,8 @@ import (
 
 // AuthMiddleware validates the JWT from the Authorization header and injects
 // the authenticated user's identity into the Gin context for downstream handlers.
-func AuthMiddleware() gin.HandlerFunc {
+// The JWT secret is passed explicitly to avoid reading from environment variables.
+func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -35,7 +36,7 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		claims, err := utils.ValidateToken(tokenString)
+		claims, err := utils.ValidateToken(tokenString, jwtSecret)
 		if err != nil {
 			utils.Error(c, http.StatusUnauthorized, "invalid or expired token: "+err.Error())
 			c.Abort()

@@ -27,21 +27,27 @@ func main() {
 	// Connect to PostgreSQL
 	db := config.ConnectDB(cfg)
 
-	// Auto-migrate all database tables including new models.
-	err := db.AutoMigrate(
-		&models.User{},
-		&models.FinancialRecord{},
-		&models.Account{},
-		&models.LedgerEntry{},
-		&models.AuditEvent{},
-		&models.OutboxEntry{},
-		&models.RefreshToken{},
-		&models.IdempotencyKey{},
-	)
-	if err != nil {
-		log.Fatalf("Failed to auto-migrate database: %v", err)
+	// Auto-migrate database tables.
+	// WARNING: AutoMigrate is disabled in production. Use versioned SQL
+	// migrations (e.g., golang-migrate) for production schema changes.
+	if cfg.AppEnv != "production" {
+		err := db.AutoMigrate(
+			&models.User{},
+			&models.FinancialRecord{},
+			&models.Account{},
+			&models.LedgerEntry{},
+			&models.AuditEvent{},
+			&models.OutboxEntry{},
+			&models.RefreshToken{},
+			&models.IdempotencyKey{},
+		)
+		if err != nil {
+			log.Fatalf("Failed to auto-migrate database: %v", err)
+		}
+		log.Println("Database migration completed successfully")
+	} else {
+		log.Println("Production mode: skipping AutoMigrate (use versioned migrations)")
 	}
-	log.Println("Database migration completed successfully")
 
 	// Start the outbox publisher background worker.
 	ctx, cancel := context.WithCancel(context.Background())

@@ -80,4 +80,28 @@ func (p *OutboxPublisher) processOutbox() {
 			continue
 		}
 	}
+
+	// Periodic cleanup of expired data to prevent unbounded table growth.
+	p.cleanupExpiredIdempotencyKeys()
+	p.cleanupExpiredRefreshTokens()
+}
+
+// cleanupExpiredIdempotencyKeys deletes idempotency keys past their 24h TTL.
+func (p *OutboxPublisher) cleanupExpiredIdempotencyKeys() {
+	result := p.DB.Where("expires_at < ?", time.Now()).Delete(&models.IdempotencyKey{})
+	if result.Error != nil {
+		slog.Error("cleanup: failed to delete expired idempotency keys", slog.String("error", result.Error.Error()))
+	} else if result.RowsAffected > 0 {
+		slog.Info("cleanup: deleted expired idempotency keys", slog.Int64("count", result.RowsAffected))
+	}
+}
+
+// cleanupExpiredRefreshTokens deletes refresh tokens that are both expired and revoked.
+func (p *OutboxPublisher) cleanupExpiredRefreshTokens() {
+	result := p.DB.Where("expires_at < ? AND revoked_at IS NOT NULL", time.Now()).Delete(&models.RefreshToken{})
+	if result.Error != nil {
+		slog.Error("cleanup: failed to delete expired refresh tokens", slog.String("error", result.Error.Error()))
+	} else if result.RowsAffected > 0 {
+		slog.Info("cleanup: deleted expired refresh tokens", slog.Int64("count", result.RowsAffected))
+	}
 }

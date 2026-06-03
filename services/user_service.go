@@ -76,6 +76,11 @@ func (s *UserService) UpdateUser(id string, updates map[string]interface{}) (*mo
 		return nil, err
 	}
 
+	// Re-fetch to return fresh data (Updates does not refresh all struct fields).
+	if err := s.DB.Where("id = ?", id).First(user).Error; err != nil {
+		return nil, apperrors.Internal("failed to retrieve updated user", err)
+	}
+
 	return user, nil
 }
 

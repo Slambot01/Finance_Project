@@ -17,7 +17,7 @@ func TestTokenService_IssueTokenPair(t *testing.T) {
 	}
 
 	t.Run("IssueTokenPair returns both tokens", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "TokenUser", "tokenuser@example.com", "viewer")
 
 		accessToken, refreshToken, err := service.IssueTokenPair(user)
@@ -44,7 +44,7 @@ func TestTokenService_RefreshTokens(t *testing.T) {
 	}
 
 	t.Run("RefreshTokens rotates tokens correctly", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "RefreshUser", "refresh@example.com", "analyst")
 
 		_, originalRefresh, err := service.IssueTokenPair(user)
@@ -64,7 +64,7 @@ func TestTokenService_RefreshTokens(t *testing.T) {
 	})
 
 	t.Run("Using revoked token triggers family-wide revocation", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "ReplayUser", "replay@example.com", "viewer")
 
 		_, originalRefresh, err := service.IssueTokenPair(user)
@@ -89,7 +89,7 @@ func TestTokenService_RefreshTokens(t *testing.T) {
 	})
 
 	t.Run("Invalid refresh token rejected", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 
 		_, _, err := service.RefreshTokens("completely-invalid-token")
 
@@ -98,7 +98,7 @@ func TestTokenService_RefreshTokens(t *testing.T) {
 	})
 
 	t.Run("Deactivated user cannot refresh tokens", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "Deactivated", "deactivated@example.com", "viewer")
 
 		_, refreshToken, err := service.IssueTokenPair(user)
@@ -123,7 +123,7 @@ func TestTokenService_RevokeAllUserTokens(t *testing.T) {
 	}
 
 	t.Run("RevokeAllUserTokens revokes all active tokens", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "LogoutUser", "logout@example.com", "admin")
 
 		// Issue multiple token pairs (simulating multiple devices).

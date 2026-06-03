@@ -14,12 +14,12 @@ import (
 // detecting replay attacks.
 type RefreshToken struct {
 	ID         uuid.UUID  `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID     uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
+	UserID     uuid.UUID  `gorm:"type:uuid;not null;index:idx_refresh_user_revoked" json:"user_id"`
 	User       User       `gorm:"foreignKey:UserID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;" json:"-"`
 	TokenHash  string     `gorm:"type:varchar(64);not null;uniqueIndex" json:"-"` // SHA-256 hash of the raw token
 	FamilyID   uuid.UUID  `gorm:"type:uuid;not null;index" json:"-"`             // Token family for rotation tracking
 	ExpiresAt  time.Time  `gorm:"not null" json:"expires_at"`
-	RevokedAt  *time.Time `json:"revoked_at,omitempty"`
+	RevokedAt  *time.Time `gorm:"index:idx_refresh_user_revoked" json:"revoked_at,omitempty"`
 	ReplacedBy *uuid.UUID `gorm:"type:uuid" json:"-"` // Points to the rotated successor token
 	CreatedAt  time.Time  `json:"created_at"`
 }

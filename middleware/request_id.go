@@ -18,6 +18,12 @@ const (
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		id := c.GetHeader(RequestIDHeader)
+		// Validate client-supplied IDs to prevent log injection attacks.
+		if id != "" {
+			if _, err := uuid.Parse(id); err != nil {
+				id = "" // reject invalid IDs
+			}
+		}
 		if id == "" {
 			id = uuid.New().String()
 		}

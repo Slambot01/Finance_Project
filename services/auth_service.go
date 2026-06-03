@@ -5,7 +5,6 @@ import (
 
 	apperrors "finance-dashboard/errors"
 	"finance-dashboard/models"
-	"finance-dashboard/utils"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -132,11 +131,7 @@ func (s *AuthService) Login(_ context.Context, email, password, requestID, ipAdd
 			return "", "", nil, err
 		}
 	} else {
-		// Fallback: generate a simple access token (used in tests without a full TokenService).
-		accessToken, err = utils.GenerateToken(u.ID.String(), u.Email, string(u.Role))
-		if err != nil {
-			return "", "", nil, apperrors.Internal("failed to generate authentication token", err)
-		}
+		return "", "", nil, apperrors.Internal("token service is not configured", nil)
 	}
 
 	// Emit a login audit event (best-effort — don't fail login on audit error).

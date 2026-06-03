@@ -59,19 +59,21 @@ func startEviction() {
 }
 
 func getLimiter(ip string) *rate.Limiter {
-	if v, ok := limiters.Load(ip); ok {
-		entry := v.(*rateLimitEntry)
-		entry.lastSeen = time.Now()
-		return entry.limiter
-	}
 	// 100 requests per minute ≈ ~1.67 requests/second, burst of 100.
-	limiter := rate.NewLimiter(rate.Limit(100.0/60.0), 100)
-	entry := &rateLimitEntry{
-		limiter:  limiter,
+	newLimiter := rate.NewLimiter(rate.Limit(100.0/60.0), 100)
+	newEntry := &rateLimitEntry{
+		limiter:  newLimiter,
 		lastSeen: time.Now(),
 	}
-	limiters.Store(ip, entry)
-	return limiter
+
+	// LoadOrStore is atomic — prevents duplicate limiters from concurrent goroutines.
+	actual, loaded := limiters.LoadOrStore(ip, newEntry)
+	if loaded {
+		existing := actual.(*rateLimitEntry)
+		existing.lastSeen = time.Now()
+		return existing.limiter
+	}
+	return newLimiter
 }
 
 // RateLimiter restricts each client IP to 100 requests per minute.

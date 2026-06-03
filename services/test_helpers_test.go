@@ -40,7 +40,8 @@ func setupTestDB() *gorm.DB {
 		host, port, user, password, dbName,
 	)
 
-	log.Println("Connecting to test database with DSN:", dsn)
+	// Log connection info without credentials.
+	log.Printf("Connecting to test database: %s@%s:%s/%s", user, host, port, dbName)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("Failed to connect to test database: %v", err)
@@ -70,6 +71,12 @@ func setupTestDB() *gorm.DB {
 
 // cleanupTables truncates all tables to ensure test isolation.
 func cleanupTables(db *gorm.DB) {
+	db.Exec("TRUNCATE TABLE outbox_entries CASCADE")
+	db.Exec("TRUNCATE TABLE audit_events CASCADE")
+	db.Exec("TRUNCATE TABLE ledger_entries CASCADE")
+	db.Exec("TRUNCATE TABLE accounts CASCADE")
+	db.Exec("TRUNCATE TABLE idempotency_keys CASCADE")
+	db.Exec("TRUNCATE TABLE refresh_tokens CASCADE")
 	db.Exec("TRUNCATE TABLE financial_records CASCADE")
 	db.Exec("TRUNCATE TABLE users CASCADE")
 }

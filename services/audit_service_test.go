@@ -13,7 +13,7 @@ func TestAuditService_LogEvent(t *testing.T) {
 	service := &AuditService{DB: testDB}
 
 	t.Run("LogEvent creates audit event and outbox entry atomically", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "AuditUser", "audit@example.com", "admin")
 
 		event := BuildAuditEvent("user", user.ID.String(), models.AuditCreate, "system", "req-123", "127.0.0.1", map[string]string{"name": "AuditUser"})
@@ -41,7 +41,7 @@ func TestAuditService_LogEvent(t *testing.T) {
 	})
 
 	t.Run("LogEvent captures changes as JSON", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "ChangeUser", "change@example.com", "viewer")
 
 		changes := map[string]interface{}{
@@ -68,7 +68,7 @@ func TestAuditService_QueryEvents(t *testing.T) {
 	service := &AuditService{DB: testDB}
 
 	t.Run("QueryEvents filters by entity_type", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "QueryUser", "query@example.com", "admin")
 
 		// Create events for different entity types.
@@ -90,7 +90,7 @@ func TestAuditService_QueryEvents(t *testing.T) {
 	})
 
 	t.Run("QueryEvents returns paginated results", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "PaginAudit", "paginaudit@example.com", "admin")
 
 		// Create 15 events.

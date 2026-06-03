@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"finance-dashboard/handlers"
 	"finance-dashboard/middleware"
@@ -17,6 +18,11 @@ import (
 // SetupRoutes creates a Gin engine, initialises all services and handlers,
 // and registers every route with the appropriate middleware.
 func SetupRoutes(db *gorm.DB) *gin.Engine {
+	// Set Gin mode based on environment (R3: production should use release mode).
+	if os.Getenv("APP_ENV") == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+
 	router := gin.New()
 
 	// ── Global middleware (order matters) ────────────────────────────────
@@ -24,6 +30,9 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 	router.Use(middleware.RequestID())
 	router.Use(middleware.StructuredLogger())
 	router.Use(middleware.RateLimiter())
+
+	// ── CORS middleware (S7: allow cross-origin requests) ────────────────
+	router.Use(corsMiddleware())
 
 	// ── Token expiry config (from env, with sensible defaults) ───────────
 	accessExpiryMins := 15
@@ -39,10 +48,12 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 		}
 	}
 
+	jwtSecret := os.Getenv("JWT_SECRET")
+
 	// ── Services ────────────────────────────────────────────────────────
 	tokenService := &services.TokenService{
 		DB:                     db,
-		JWTSecret:              os.Getenv("JWT_SECRET"),
+		JWTSecret:              jwtSecret,
 		AccessTokenExpiryMins:  accessExpiryMins,
 		RefreshTokenExpiryDays: refreshExpiryDays,
 	}
@@ -64,7 +75,10 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 		AuditService: auditService,
 	}
 	dashboardService := &services.DashboardService{DB: db}
-	ledgerService := &services.LedgerService{DB: db}
+	ledgerService := &services.LedgerService{
+		DB:           db,
+		AuditService: auditService, // C10: ledger now has audit trail
+	}
 
 	// ── Handlers ────────────────────────────────────────────────────────
 	authHandler := &handlers.AuthHandler{Service: authService}
@@ -78,9 +92,21 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 	auditHandler := &handlers.AuditHandler{Service: auditService}
 	tokenHandler := &handlers.TokenHandler{TokenService: tokenService}
 
-	// ── Health check ────────────────────────────────────────────────────
+	// ── Health check (R4: verify database connectivity) ─────────────────
 	router.GET("/health", func(c *gin.Context) {
-		utils.Success(c, http.StatusOK, "service is healthy", nil)
+		sqlDB, err := db.DB()
+		if err != nil {
+			utils.Error(c, http.StatusServiceUnavailable, "database unavailable")
+			return
+		}
+		if err := sqlDB.Ping(); err != nil {
+			utils.Error(c, http.StatusServiceUnavailable, "database unavailable")
+			return
+		}
+		utils.Success(c, http.StatusOK, "service is healthy", map[string]interface{}{
+			"status":    "ok",
+			"timestamp": time.Now().UTC(),
+		})
 	})
 
 	// ── Public routes (no auth required) ────────────────────────────────
@@ -93,7 +119,7 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 
 	// ── Protected routes (JWT + RBAC) ───────────────────────────────────
 	api := router.Group("/api")
-	api.Use(middleware.AuthMiddleware())
+	api.Use(middleware.AuthMiddleware(jwtSecret)) // S2: pass secret explicitly
 	api.Use(middleware.IdempotencyMiddleware(db))
 	{
 		// Auth — logout requires authentication
@@ -140,4 +166,25 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 	}
 
 	return router
+}
+
+// corsMiddleware adds Cross-Origin Resource Sharing headers (S7).
+func corsMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" {
+			c.Header("Access-Control-Allow-Origin", origin)
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Request-ID")
+			c.Header("Access-Control-Allow-Credentials", "true")
+			c.Header("Access-Control-Max-Age", "86400")
+		}
+
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
 }

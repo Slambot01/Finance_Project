@@ -218,6 +218,11 @@ func (s *RecordService) UpdateRecord(id string, updates map[string]interface{}) 
 		return nil, txErr
 	}
 
+	// Re-fetch to return fresh data (Updates does not refresh all struct fields).
+	if err := s.DB.Where("id = ?", id).First(record).Error; err != nil {
+		return nil, apperrors.Internal("failed to retrieve updated record", err)
+	}
+
 	return record, nil
 }
 

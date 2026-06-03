@@ -14,14 +14,16 @@ import (
 
 // Config holds all configuration values loaded from environment variables.
 type Config struct {
-	DBHost       string
-	DBPort       string
-	DBUser       string
-	DBPassword   string
-	DBName       string
-	JWTSecret    string
+	DBHost     string
+	DBPort     string
+	DBUser     string
+	DBPassword string
+	DBName     string
+	DBSSLMode  string // "disable" for local dev, "require" for production
+	JWTSecret  string
 	JWTExpiryHrs int
-	Port         string
+	Port       string
+	AppEnv     string // "development", "staging", "production"
 
 	// Rate limiting.
 	RateLimitPerMinute int
@@ -53,9 +55,11 @@ func Load() *Config {
 		DBUser:                   getEnv("DB_USER", "postgres"),
 		DBPassword:               getEnv("DB_PASSWORD", ""),
 		DBName:                   getEnv("DB_NAME", "finance_dashboard"),
+		DBSSLMode:                getEnv("DB_SSL_MODE", "require"),
 		JWTSecret:                getEnv("JWT_SECRET", ""),
 		JWTExpiryHrs:             jwtExpiry,
 		Port:                     getEnv("PORT", "8080"),
+		AppEnv:                   getEnv("APP_ENV", "development"),
 		RateLimitPerMinute:       rateLimitPerMin,
 		AccessTokenExpiryMinutes: accessTokenExpiry,
 		RefreshTokenExpiryDays:   refreshTokenExpiry,
@@ -66,8 +70,8 @@ func Load() *Config {
 // the connection pool for production use, and returns the DB instance.
 func ConnectDB(cfg *Config) *gorm.DB {
 	dsn := fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName,
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode,
 	)
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})

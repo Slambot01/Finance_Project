@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"net/mail"
 	"strings"
 
 	"finance-dashboard/services"
@@ -54,6 +55,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		utils.ValidationError(c, "missing required fields", map[string]interface{}{
 			"required": missing,
 		})
+		return
+	}
+
+	// Validate email format.
+	if _, err := mail.ParseAddress(req.Email); err != nil {
+		utils.ValidationError(c, "invalid email format", nil)
+		return
+	}
+
+	// Enforce minimum password strength for financial security.
+	if len(req.Password) < 8 {
+		utils.ValidationError(c, "password must be at least 8 characters", nil)
 		return
 	}
 

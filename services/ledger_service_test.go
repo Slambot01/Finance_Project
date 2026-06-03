@@ -16,7 +16,7 @@ func TestLedgerService_PostTransaction(t *testing.T) {
 	accountService := &AccountService{DB: testDB}
 
 	t.Run("Balanced transaction posts successfully", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "LedgerUser", "ledger@example.com", "admin")
 
 		// Create accounts.
@@ -49,7 +49,7 @@ func TestLedgerService_PostTransaction(t *testing.T) {
 	})
 
 	t.Run("Unbalanced transaction rejected", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "Unbalanced", "unbalanced@example.com", "admin")
 
 		cash := &models.Account{UserID: user.ID, Name: "Cash", Type: models.AccountAsset, Currency: "INR"}
@@ -73,7 +73,7 @@ func TestLedgerService_PostTransaction(t *testing.T) {
 	})
 
 	t.Run("Transaction with fewer than 2 entries rejected", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "TooFew", "toofew@example.com", "admin")
 
 		cash := &models.Account{UserID: user.ID, Name: "Cash", Type: models.AccountAsset, Currency: "INR"}
@@ -94,7 +94,7 @@ func TestLedgerService_PostTransaction(t *testing.T) {
 	})
 
 	t.Run("Transaction with zero amount rejected", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "ZeroAmt", "zeroamt@example.com", "admin")
 
 		cash := &models.Account{UserID: user.ID, Name: "Cash", Type: models.AccountAsset, Currency: "INR"}
@@ -118,7 +118,7 @@ func TestLedgerService_PostTransaction(t *testing.T) {
 	})
 
 	t.Run("Transaction with invalid account ID rejected", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "BadAcct", "badacct@example.com", "admin")
 
 		cash := &models.Account{UserID: user.ID, Name: "Cash", Type: models.AccountAsset, Currency: "INR"}
@@ -140,7 +140,7 @@ func TestLedgerService_PostTransaction(t *testing.T) {
 	})
 
 	t.Run("Multiple transactions accumulate balances correctly", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "Accumulator", "accum@example.com", "admin")
 
 		cash := &models.Account{UserID: user.ID, Name: "Cash", Type: models.AccountAsset, Currency: "INR"}
@@ -188,7 +188,7 @@ func TestAccountService_CreateDefaultAccounts(t *testing.T) {
 	service := &AccountService{DB: testDB}
 
 	t.Run("CreateDefaultAccounts creates 3 accounts", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "DefaultAccts", "defaults@example.com", "viewer")
 
 		err := service.CreateDefaultAccounts(testDB, user.ID)
@@ -213,7 +213,7 @@ func TestLedgerService_GetTransactions(t *testing.T) {
 	service := &LedgerService{DB: testDB}
 
 	t.Run("GetTransactions returns entries for account", func(t *testing.T) {
-		cleanupAllTables(testDB)
+		cleanupTables(testDB)
 		user := createTestUser(t, "TxList", "txlist@example.com", "admin")
 
 		cash := &models.Account{UserID: user.ID, Name: "Cash", Type: models.AccountAsset, Currency: "INR"}
@@ -238,17 +238,5 @@ func TestLedgerService_GetTransactions(t *testing.T) {
 	})
 }
 
-// cleanupAllTables truncates all tables including new models.
-func cleanupAllTables(db *gorm.DB) {
-	db.Exec("TRUNCATE TABLE outbox_entries CASCADE")
-	db.Exec("TRUNCATE TABLE audit_events CASCADE")
-	db.Exec("TRUNCATE TABLE ledger_entries CASCADE")
-	db.Exec("TRUNCATE TABLE accounts CASCADE")
-	db.Exec("TRUNCATE TABLE idempotency_keys CASCADE")
-	db.Exec("TRUNCATE TABLE refresh_tokens CASCADE")
-	db.Exec("TRUNCATE TABLE financial_records CASCADE")
-	db.Exec("TRUNCATE TABLE users CASCADE")
-}
-
-// Ensure gorm import used for cleanupAllTables.
+// Ensure gorm import used for cleanupTables.
 var _ = (*gorm.DB)(nil)

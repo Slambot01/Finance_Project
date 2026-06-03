@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
+	"time"
 
 	"finance-dashboard/utils"
 
@@ -13,17 +13,17 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const testJWTSecret = "test-secret-key-for-unit-tests"
+
 func init() {
 	gin.SetMode(gin.TestMode)
-	os.Setenv("JWT_SECRET", "test-secret-key-for-unit-tests")
-	os.Setenv("JWT_EXPIRY_HOURS", "24")
 }
 
 // buildAuthRouter creates a Gin engine with the AuthMiddleware applied and a
 // simple 200 handler that echoes the context values set by the middleware.
 func buildAuthRouter() *gin.Engine {
 	r := gin.New()
-	r.GET("/protected", AuthMiddleware(), func(c *gin.Context) {
+	r.GET("/protected", AuthMiddleware(testJWTSecret), func(c *gin.Context) {
 		utils.Success(c, http.StatusOK, "ok", gin.H{
 			"userID":    c.GetString("userID"),
 			"userEmail": c.GetString("userEmail"),
@@ -37,7 +37,7 @@ func TestAuthMiddleware(t *testing.T) {
 	router := buildAuthRouter()
 
 	t.Run("Valid_Bearer_token_sets_context_values", func(t *testing.T) {
-		token, err := utils.GenerateToken("user-123", "test@example.com", "admin")
+		token, err := utils.GenerateToken("user-123", "test@example.com", "admin", testJWTSecret, 24*time.Hour)
 		assert.NoError(t, err)
 
 		req := httptest.NewRequest(http.MethodGet, "/protected", nil)
@@ -75,7 +75,7 @@ func TestAuthMiddleware(t *testing.T) {
 	})
 
 	t.Run("Authorization_without_Bearer_prefix_returns_401", func(t *testing.T) {
-		token, _ := utils.GenerateToken("user-123", "test@example.com", "admin")
+		token, _ := utils.GenerateToken("user-123", "test@example.com", "admin", testJWTSecret, 24*time.Hour)
 
 		req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 		req.Header.Set("Authorization", "Token "+token)
@@ -125,9 +125,19 @@ func TestAuthMiddleware(t *testing.T) {
 	})
 
 	t.Run("Expired_token_returns_401", func(t *testing.T) {
-		// GenerateToken reads JWT_EXPIRY_HOURS from env and doesn't support
-		// custom expiry durations, so we cannot easily generate an already-expired
-		// token without manipulating time. Skipping this subtest.
-		t.Skip("GenerateToken doesn't support custom expiry — cannot generate an expired token without time manipulation")
+		// Generate a token that expires immediately (1 nanosecond).
+		token, err := utils.GenerateToken("user-expired", "expired@example.com", "viewer", testJWTSecret, 1*time.Nanosecond)
+		assert.NoError(t, err)
+
+		// Wait a tiny bit to ensure it's expired.
+		time.Sleep(10 * time.Millisecond)
+
+		req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }

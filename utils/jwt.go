@@ -2,11 +2,16 @@ package utils
 
 import (
 	"errors"
-	"os"
-	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+)
+
+const (
+	// JWTIssuer identifies tokens issued by this service.
+	JWTIssuer = "immutablecore"
+	// JWTAudience identifies the intended consumer of the token.
+	JWTAudience = "immutablecore-api"
 )
 
 // Claims holds the custom JWT payload fields alongside standard registered claims.
@@ -18,28 +23,8 @@ type Claims struct {
 }
 
 // GenerateToken creates a signed HS256 JWT carrying the user's ID, email, and role.
-// It reads JWT_SECRET and JWT_EXPIRY_HOURS from environment variables.
-// If JWT_EXPIRY_HOURS is missing or not parseable, it defaults to 24 hours.
-func GenerateToken(userID, email, role string) (string, error) {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		return "", errors.New("JWT_SECRET environment variable is not set")
-	}
-
-	expiryHours := 24
-	if raw := os.Getenv("JWT_EXPIRY_HOURS"); raw != "" {
-		if parsed, err := strconv.Atoi(raw); err == nil && parsed > 0 {
-			expiryHours = parsed
-		}
-	}
-
-	return GenerateTokenWithExpiry(userID, email, role, secret, time.Duration(expiryHours)*time.Hour)
-}
-
-// GenerateTokenWithExpiry creates a signed HS256 JWT with an explicit secret
-// and expiry duration. This is used by the TokenService to generate short-lived
-// access tokens (15 min) while keeping the legacy GenerateToken for backward compatibility.
-func GenerateTokenWithExpiry(userID, email, role, secret string, expiry time.Duration) (string, error) {
+// The secret and expiry must be provided explicitly — no environment variable reads.
+func GenerateToken(userID, email, role, secret string, expiry time.Duration) (string, error) {
 	if secret == "" {
 		return "", errors.New("JWT secret must not be empty")
 	}
@@ -50,6 +35,8 @@ func GenerateTokenWithExpiry(userID, email, role, secret string, expiry time.Dur
 		Email:  email,
 		Role:   role,
 		RegisteredClaims: jwt.RegisteredClaims{
+			Issuer:    JWTIssuer,
+			Audience:  jwt.ClaimStrings{JWTAudience},
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(expiry)),
 		},
@@ -60,19 +47,8 @@ func GenerateTokenWithExpiry(userID, email, role, secret string, expiry time.Dur
 }
 
 // ValidateToken parses the given token string, verifies the HMAC signing method,
-// and returns the embedded claims. Returns a descriptive error on any failure.
-func ValidateToken(tokenString string) (*Claims, error) {
-	secret := os.Getenv("JWT_SECRET")
-	if secret == "" {
-		return nil, errors.New("JWT_SECRET environment variable is not set")
-	}
-
-	return ValidateTokenWithSecret(tokenString, secret)
-}
-
-// ValidateTokenWithSecret parses and validates a token using an explicit secret.
-// Used by the TokenService for consistent secret management.
-func ValidateTokenWithSecret(tokenString, secret string) (*Claims, error) {
+// issuer, audience, and returns the embedded claims. Returns a descriptive error on any failure.
+func ValidateToken(tokenString, secret string) (*Claims, error) {
 	if secret == "" {
 		return nil, errors.New("JWT secret must not be empty")
 	}
@@ -82,7 +58,10 @@ func ValidateTokenWithSecret(tokenString, secret string) (*Claims, error) {
 			return nil, errors.New("unexpected signing method")
 		}
 		return []byte(secret), nil
-	})
+	},
+		jwt.WithIssuer(JWTIssuer),
+		jwt.WithAudience(JWTAudience),
+	)
 	if err != nil {
 		return nil, err
 	}

@@ -15,7 +15,8 @@ import (
 // are updated atomically using row-level locks (SELECT FOR UPDATE) to prevent
 // inconsistencies from concurrent operations.
 type LedgerService struct {
-	DB *gorm.DB
+	DB           *gorm.DB
+	AuditService *AuditService // optional — if nil, audit logging is skipped
 }
 
 // PostTransactionRequest represents a request to post a double-entry transaction.
@@ -144,6 +145,17 @@ func (s *LedgerService) PostTransaction(req PostTransactionRequest) ([]models.Le
 		for _, account := range accountMap {
 			if err := tx.Model(account).Update("balance", account.Balance).Error; err != nil {
 				return apperrors.Internal("failed to update account balance", err)
+			}
+		}
+
+		// Emit audit event inside the same transaction for atomicity.
+		if s.AuditService != nil {
+			event := BuildAuditEvent("ledger_transaction", transactionID.String(), models.AuditCreate, "", "", "", map[string]interface{}{
+				"description":  req.Description,
+				"entry_count":  len(req.Entries),
+			})
+			if err := s.AuditService.LogEvent(tx, event); err != nil {
+				return err
 			}
 		}
 

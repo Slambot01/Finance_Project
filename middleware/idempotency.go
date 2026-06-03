@@ -74,6 +74,7 @@ func IdempotencyMiddleware(db *gorm.DB) gin.HandlerFunc {
 		writer := &responseCapture{
 			ResponseWriter: c.Writer,
 			body:           &bytes.Buffer{},
+			statusCode:     http.StatusOK, // default matches Go's implicit 200
 		}
 		c.Writer = writer
 

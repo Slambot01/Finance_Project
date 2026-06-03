@@ -34,7 +34,7 @@ func (s *TokenService) IssueTokenPair(user *models.User) (accessToken, refreshTo
 		expiryMins = 15
 	}
 
-	accessToken, err = utils.GenerateTokenWithExpiry(
+	accessToken, err = utils.GenerateToken(
 		user.ID.String(), user.Email, string(user.Role),
 		s.JWTSecret, time.Duration(expiryMins)*time.Minute,
 	)

@@ -20,7 +20,7 @@ type OutboxEntry struct {
 	AuditEvent  AuditEvent `gorm:"foreignKey:EventID" json:"-"`
 	EventType   string     `gorm:"type:varchar(50);not null" json:"event_type"` // e.g. "user.registered", "record.created"
 	Payload     string     `gorm:"type:text;not null" json:"payload"`           // JSON serialized event data
-	PublishedAt *time.Time `json:"published_at,omitempty"`
+	PublishedAt *time.Time `gorm:"index" json:"published_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 }
 

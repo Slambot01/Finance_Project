@@ -2,6 +2,8 @@ package routes
 
 import (
 	"net/http"
+	"os"
+	"strconv"
 
 	"finance-dashboard/handlers"
 	"finance-dashboard/middleware"
@@ -15,20 +17,66 @@ import (
 // SetupRoutes creates a Gin engine, initialises all services and handlers,
 // and registers every route with the appropriate middleware.
 func SetupRoutes(db *gorm.DB) *gin.Engine {
-	router := gin.Default()
+	router := gin.New()
+
+	// ── Global middleware (order matters) ────────────────────────────────
+	router.Use(gin.Recovery())
+	router.Use(middleware.RequestID())
+	router.Use(middleware.StructuredLogger())
 	router.Use(middleware.RateLimiter())
 
+	// ── Token expiry config (from env, with sensible defaults) ───────────
+	accessExpiryMins := 15
+	refreshExpiryDays := 7
+	if v := os.Getenv("ACCESS_TOKEN_EXPIRY_MINUTES"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			accessExpiryMins = parsed
+		}
+	}
+	if v := os.Getenv("REFRESH_TOKEN_EXPIRY_DAYS"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			refreshExpiryDays = parsed
+		}
+	}
+
 	// ── Services ────────────────────────────────────────────────────────
-	authService := &services.AuthService{DB: db}
-	userService := &services.UserService{DB: db}
-	recordService := &services.RecordService{DB: db}
+	tokenService := &services.TokenService{
+		DB:                     db,
+		JWTSecret:              os.Getenv("JWT_SECRET"),
+		AccessTokenExpiryMins:  accessExpiryMins,
+		RefreshTokenExpiryDays: refreshExpiryDays,
+	}
+	accountService := &services.AccountService{DB: db}
+	auditService := &services.AuditService{DB: db}
+
+	authService := &services.AuthService{
+		DB:             db,
+		TokenService:   tokenService,
+		AccountService: accountService,
+		AuditService:   auditService,
+	}
+	userService := &services.UserService{
+		DB:           db,
+		AuditService: auditService,
+	}
+	recordService := &services.RecordService{
+		DB:           db,
+		AuditService: auditService,
+	}
 	dashboardService := &services.DashboardService{DB: db}
+	ledgerService := &services.LedgerService{DB: db}
 
 	// ── Handlers ────────────────────────────────────────────────────────
 	authHandler := &handlers.AuthHandler{Service: authService}
 	userHandler := &handlers.UserHandler{Service: userService}
 	recordHandler := &handlers.RecordHandler{Service: recordService}
 	dashboardHandler := &handlers.DashboardHandler{Service: dashboardService}
+	ledgerHandler := &handlers.LedgerHandler{
+		LedgerService:  ledgerService,
+		AccountService: accountService,
+	}
+	auditHandler := &handlers.AuditHandler{Service: auditService}
+	tokenHandler := &handlers.TokenHandler{TokenService: tokenService}
 
 	// ── Health check ────────────────────────────────────────────────────
 	router.GET("/health", func(c *gin.Context) {
@@ -40,12 +88,17 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 	{
 		auth.POST("/register", authHandler.Register)
 		auth.POST("/login", authHandler.Login)
+		auth.POST("/refresh", tokenHandler.Refresh)
 	}
 
 	// ── Protected routes (JWT + RBAC) ───────────────────────────────────
 	api := router.Group("/api")
 	api.Use(middleware.AuthMiddleware())
+	api.Use(middleware.IdempotencyMiddleware(db))
 	{
+		// Auth — logout requires authentication
+		api.POST("/auth/logout", tokenHandler.Logout)
+
 		// User management — admin only
 		users := api.Group("/users")
 		{
@@ -71,6 +124,19 @@ func SetupRoutes(db *gorm.DB) *gin.Engine {
 			dashboard.GET("/trends", middleware.RequireRole("analyst", "admin"), dashboardHandler.GetTrends)
 			dashboard.GET("/categories", middleware.RequireRole("analyst", "admin"), dashboardHandler.GetCategoryBreakdown)
 		}
+
+		// Double-entry ledger
+		ledger := api.Group("/ledger")
+		{
+			ledger.POST("/transactions", middleware.RequireRole("admin"), ledgerHandler.PostTransaction)
+			ledger.GET("/transactions", middleware.RequireRole("viewer", "analyst", "admin"), ledgerHandler.GetTransactions)
+			ledger.GET("/accounts", middleware.RequireRole("viewer", "analyst", "admin"), ledgerHandler.GetAccounts)
+			ledger.POST("/accounts", middleware.RequireRole("admin"), ledgerHandler.CreateAccount)
+			ledger.GET("/accounts/:id/entries", middleware.RequireRole("viewer", "analyst", "admin"), ledgerHandler.GetAccountEntries)
+		}
+
+		// Audit log — admin only
+		api.GET("/audit", middleware.RequireRole("admin"), auditHandler.GetAuditLog)
 	}
 
 	return router

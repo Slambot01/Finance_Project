@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">💰 FintechAPI Backend</h1>
+  <h1 align="center">🛡️ ImmutableCore</h1>
   <p align="center">
     <strong>A production-grade financial services API built with Go</strong>
   </p>
@@ -18,16 +18,16 @@
 
 ---
 
-## Why This Project Exists
+## Project Overview
 
-Most backend tutorials stop at basic CRUD. Real-world fintech systems need guarantees that money is never lost, duplicated, or secretly modified. This project implements the same patterns used by production payment systems like Stripe, Razorpay, and modern neobanks:
+**ImmutableCore** is a robust financial backend designed to handle double-entry accounting with strict consistency and security guarantees. It demonstrates the implementation of critical financial system patterns, focusing on data integrity, traceability, and secure access control.
+
+Key architectural patterns implemented:
 
 - **Double-entry bookkeeping** ensures every rupee is accounted for (debits always equal credits)
 - **Idempotent mutations** prevent duplicate charges when clients retry failed requests
 - **Token rotation with replay attack detection** automatically revokes all sessions if a stolen refresh token is reused
 - **Transactional audit logging** creates an immutable, SOC 2-compliant trail of every state change
-
-> This is not a toy project. It is a fully testable, deployable financial backend.
 
 ---
 
@@ -641,9 +641,3 @@ A complete Postman collection is included for manual API testing:
 ## License
 
 MIT
-
----
-
-<p align="center">
-  Built with precision for financial-grade reliability.
-</p>

@@ -1,5 +1,6 @@
 # Environment
 .env
+.env.test
 
 # Binaries
 *.exe
@@ -17,6 +18,10 @@ vendor/
 *.test
 *.out
 
+# Test output
+*.log
+services.test.exe
+
 # IDE
 .idea/
 .vscode/
@@ -26,3 +31,6 @@ vendor/
 # OS
 .DS_Store
 Thumbs.db
+
+# Misc
+kill_pg.go
